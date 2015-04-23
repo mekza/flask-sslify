@@ -8,17 +8,19 @@ YEAR_IN_SECS = 31536000
 class SSLify(object):
     """Secures your Flask App."""
 
-    def __init__(self, app=None, age=YEAR_IN_SECS, subdomains=False, permanent=False, skips=None):
+    def __init__(self, app=None, age=YEAR_IN_SECS, subdomains=False, permanent=False, skips=None, http11=False):
         self.app = app or current_app
         self.hsts_age = age
 
         self.app.config.setdefault('SSLIFY_SUBDOMAINS', False)
         self.app.config.setdefault('SSLIFY_PERMANENT', False)
         self.app.config.setdefault('SSLIFY_SKIPS', None)
+        self.app.config.setdefault('SSLIFY_HTTP11', False)
 
         self.hsts_include_subdomains = subdomains or self.app.config['SSLIFY_SUBDOMAINS']
         self.permanent = permanent or self.app.config['SSLIFY_PERMANENT']
         self.skip_list = skips or self.app.config['SSLIFY_SKIPS']
+        self.http11 = http11 or self.app.config['SSLIFY_HTTP11']
 
         if app is not None:
             self.init_app(app)
@@ -60,9 +62,15 @@ class SSLify(object):
         if not any(criteria) and not self.skip:
             if request.url.startswith('http://'):
                 url = request.url.replace('http://', 'https://', 1)
-                code = 302
-                if self.permanent:
+                if self.http11 and self.permanent:
+                    code = 308        
+                elif self.http11 and not self.permanent:
+                    code = 307
+                elif not self.http11 and self.permanent:
                     code = 301
+                elif not self.http11 and not self.permanent:
+                    code = 302
+                   
                 r = redirect(url, code=code)
                 return r
 
